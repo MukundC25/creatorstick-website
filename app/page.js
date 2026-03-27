@@ -1,20 +1,16 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion';
+import { motion, useReducedMotion, AnimatePresence } from 'framer-motion';
 
 const LAUNCH_DATE = new Date('2026-04-03T00:00:00');
 
 function useCountdown(target) {
   const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
-
   useEffect(() => {
     function calc() {
       const diff = target - Date.now();
-      if (diff <= 0) {
-        setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 });
-        return;
-      }
+      if (diff <= 0) { setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0 }); return; }
       setTimeLeft({
         days: Math.floor(diff / 86400000),
         hours: Math.floor((diff % 86400000) / 3600000),
@@ -26,7 +22,6 @@ function useCountdown(target) {
     const id = setInterval(calc, 1000);
     return () => clearInterval(id);
   }, [target]);
-
   return timeLeft;
 }
 
@@ -38,10 +33,10 @@ function CountdownUnit({ value, label }) {
         <AnimatePresence mode="popLayout">
           <motion.span
             key={str}
-            initial={{ y: -30, opacity: 0 }}
+            initial={{ y: -20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 30, opacity: 0 }}
-            transition={{ duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] }}
+            exit={{ y: 20, opacity: 0 }}
+            transition={{ duration: 0.25, ease: 'easeOut' }}
             className="cs-countdown-digit"
           >
             {str}
@@ -58,10 +53,7 @@ export default function ComingSoon() {
   const [email, setEmail] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
-  const heroRef = useRef(null);
-
-  const { scrollYProgress } = useScroll({ target: heroRef, offset: ['start start', 'end start'] });
-  const bgY = useTransform(scrollYProgress, [0, 1], ['0%', '30%']);
+  const prefersReducedMotion = useReducedMotion();
 
   function handleSubmit(e) {
     e.preventDefault();
@@ -82,25 +74,32 @@ export default function ComingSoon() {
   return (
     <>
       <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap');
+
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+        /* ── PERFORMANCE: Promote layers to GPU upfront ── */
         .cs-root {
           min-height: 100vh;
+          min-height: 100dvh;
           background: #0a0a0a;
           color: #ffffff;
           font-family: 'Montserrat', sans-serif;
           overflow-x: hidden;
           position: relative;
+          /* Fix iOS momentum scroll lag */
+          -webkit-overflow-scrolling: touch;
         }
 
-        /* ── NOISE OVERLAY ── */
-        .cs-root::before {
-          content: '';
-          position: fixed;
+        /* ── NOISE: use absolute (not fixed) — fixed causes scroll repaint on mobile ── */
+        .cs-noise {
+          position: absolute;
           inset: 0;
-          background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.025'/%3E%3C/svg%3E");
+          background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.02'/%3E%3C/svg%3E");
           pointer-events: none;
           z-index: 1;
+          /* Use will-change so browser composites this layer separately */
+          will-change: transform;
         }
 
         /* ── GRID PATTERN ── */
@@ -108,46 +107,53 @@ export default function ComingSoon() {
           position: absolute;
           inset: 0;
           background-image:
-            linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+            linear-gradient(rgba(255,255,255,0.022) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255,255,255,0.022) 1px, transparent 1px);
           background-size: 60px 60px;
           pointer-events: none;
+        }
+
+        /* ── ORB: Use will-change + transform3d for GPU compositing ── */
+        .cs-orb {
+          position: absolute;
+          border-radius: 50%;
+          pointer-events: none;
+          /* GPU layer promotion — avoids triggering layout/paint on animate */
+          will-change: transform;
+          transform: translateZ(0);
+        }
+        .cs-orb-1 {
+          width: min(600px, 90vw);
+          height: min(600px, 90vw);
+          background: radial-gradient(circle, rgba(255,107,0,0.14) 0%, transparent 70%);
+          top: -80px; right: -120px;
+          /* No blur filter — radial-gradient achieves same look without GPU cost */
+        }
+        .cs-orb-2 {
+          width: min(450px, 80vw);
+          height: min(450px, 80vw);
+          background: radial-gradient(circle, rgba(255,107,0,0.08) 0%, transparent 70%);
+          bottom: -80px; left: -80px;
+        }
+        .cs-orb-3 {
+          width: min(280px, 60vw);
+          height: min(280px, 60vw);
+          background: radial-gradient(circle, rgba(255,140,0,0.1) 0%, transparent 70%);
+          top: 50%; left: 50%;
+          transform: translate(-50%, -50%) translateZ(0);
         }
 
         /* ── HERO ── */
         .cs-hero {
           position: relative;
           min-height: 100vh;
+          min-height: 100dvh;
           display: flex;
           flex-direction: column;
           align-items: center;
           justify-content: center;
-          padding: 6rem 1.5rem 4rem;
+          padding: 5rem 1.25rem 5rem;
           overflow: hidden;
-        }
-
-        /* ── ORB BG ── */
-        .cs-orb {
-          position: absolute;
-          border-radius: 50%;
-          filter: blur(120px);
-          pointer-events: none;
-        }
-        .cs-orb-1 {
-          width: 600px; height: 600px;
-          background: rgba(255,107,0,0.12);
-          top: -100px; right: -150px;
-        }
-        .cs-orb-2 {
-          width: 500px; height: 500px;
-          background: rgba(255,107,0,0.06);
-          bottom: -100px; left: -100px;
-        }
-        .cs-orb-3 {
-          width: 300px; height: 300px;
-          background: rgba(255,140,0,0.08);
-          top: 50%; left: 50%;
-          transform: translate(-50%, -50%);
         }
 
         /* ── HERO CONTENT ── */
@@ -155,7 +161,7 @@ export default function ComingSoon() {
           position: relative;
           z-index: 2;
           text-align: center;
-          max-width: 900px;
+          max-width: 860px;
           width: 100%;
         }
 
@@ -163,27 +169,28 @@ export default function ComingSoon() {
         .cs-badge {
           display: inline-flex;
           align-items: center;
-          gap: 10px;
-          background: rgba(255,255,255,0.04);
-          border: 1px solid rgba(255,107,0,0.25);
+          gap: 8px;
+          background: rgba(255,107,0,0.08);
+          border: 1px solid rgba(255,107,0,0.3);
           border-radius: 100px;
-          padding: 8px 20px;
-          margin-bottom: 2.5rem;
-          backdrop-filter: blur(12px);
+          padding: 7px 16px;
+          margin-bottom: 2rem;
+          /* Removed backdrop-filter: blur — causes scroll lag on mobile */
         }
         .cs-badge-dot {
-          width: 8px; height: 8px;
+          width: 7px; height: 7px;
           background: #FF6B00;
           border-radius: 50%;
+          flex-shrink: 0;
           animation: badge-pulse 2s ease-in-out infinite;
         }
         @keyframes badge-pulse {
-          0%, 100% { box-shadow: 0 0 0 0 rgba(255,107,0,0.4); }
-          50% { box-shadow: 0 0 0 6px rgba(255,107,0,0); }
+          0%, 100% { box-shadow: 0 0 0 0 rgba(255,107,0,0.5); }
+          50%       { box-shadow: 0 0 0 5px rgba(255,107,0,0); }
         }
         .cs-badge-text {
-          font-size: 0.75rem;
-          font-weight: 600;
+          font-size: clamp(0.6rem, 2.2vw, 0.72rem);
+          font-weight: 700;
           letter-spacing: 0.15em;
           text-transform: uppercase;
           color: #FF6B00;
@@ -191,12 +198,12 @@ export default function ComingSoon() {
 
         /* ── HEADLINE ── */
         .cs-headline {
-          font-size: clamp(2.8rem, 9.5vw, 7rem);
+          font-size: clamp(2.6rem, 11vw, 7rem);
           font-weight: 900;
-          line-height: 1.08;
-          letter-spacing: -0.03em;
+          line-height: 1.06;
+          letter-spacing: -0.025em;
           font-family: 'Montserrat', sans-serif;
-          margin-bottom: 1.5rem;
+          margin-bottom: 1.25rem;
           overflow: visible;
         }
         .cs-headline-white { color: #ffffff; display: block; }
@@ -208,56 +215,77 @@ export default function ComingSoon() {
           background-clip: text;
         }
         .cs-headline-dim {
-          color: rgba(255,255,255,0.15);
+          color: rgba(255,255,255,0.14);
           display: block;
         }
 
         /* ── SUBTEXT ── */
         .cs-sub {
-          font-size: clamp(0.95rem, 2vw, 1.2rem);
-          color: #888888;
-          max-width: 560px;
-          margin: 0 auto 3.5rem;
+          font-size: clamp(0.88rem, 2.5vw, 1.1rem);
+          color: #7a7a7a;
+          max-width: 540px;
+          margin: 0 auto 2.5rem;
           line-height: 1.75;
           font-weight: 400;
+          padding: 0 0.25rem;
+        }
+
+        /* ── TAGS ── */
+        .cs-tags {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.4rem;
+          justify-content: center;
+          margin-bottom: 2.25rem;
+          padding: 0 0.5rem;
+        }
+        .cs-tag {
+          font-size: clamp(0.55rem, 1.8vw, 0.62rem);
+          font-weight: 600;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          color: rgba(255,255,255,0.22);
+          background: rgba(255,255,255,0.03);
+          border: 1px solid rgba(255,255,255,0.07);
+          border-radius: 100px;
+          padding: 4px 12px;
         }
 
         /* ── PROGRESS BAR ── */
-        .cs-progress-wrap {
-          margin-bottom: 3.5rem;
-        }
+        .cs-progress-wrap { margin-bottom: 2.5rem; }
         .cs-progress-header {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          margin-bottom: 0.75rem;
+          margin-bottom: 0.6rem;
+          max-width: 460px;
+          margin-left: auto;
+          margin-right: auto;
         }
         .cs-progress-label {
-          font-size: 0.7rem;
+          font-size: clamp(0.58rem, 1.8vw, 0.68rem);
           text-transform: uppercase;
           letter-spacing: 0.18em;
-          color: #555;
+          color: #4a4a4a;
           font-weight: 600;
         }
-        .cs-progress-pct {
-          font-size: 0.85rem;
-          font-weight: 700;
-          color: #FF6B00;
-        }
+        .cs-progress-pct { font-size: 0.82rem; font-weight: 700; color: #FF6B00; }
         .cs-progress-track {
-          height: 4px;
+          height: 3px;
           background: rgba(255,255,255,0.06);
           border-radius: 100px;
           overflow: hidden;
           width: 100%;
-          max-width: 480px;
+          max-width: 460px;
           margin: 0 auto;
         }
         .cs-progress-fill {
           height: 100%;
           background: linear-gradient(90deg, #FF6B00, #ffb380);
           border-radius: 100px;
-          box-shadow: 0 0 12px rgba(255,107,0,0.5);
+          box-shadow: 0 0 10px rgba(255,107,0,0.45);
+          /* Use transform for animation — never animate width on mobile */
+          transform-origin: left;
         }
 
         /* ── COUNTDOWN ── */
@@ -265,137 +293,140 @@ export default function ComingSoon() {
           display: flex;
           align-items: center;
           justify-content: center;
-          gap: clamp(1rem, 3vw, 2.5rem);
-          margin-bottom: 3.5rem;
-          flex-wrap: wrap;
+          /* Fixed gap so items don't wrap on mobile */
+          gap: clamp(0.5rem, 2.5vw, 2rem);
+          margin-bottom: 2.5rem;
+          flex-wrap: nowrap;
         }
         .cs-countdown-unit {
           display: flex;
           flex-direction: column;
           align-items: center;
-          gap: 10px;
+          gap: 8px;
         }
         .cs-countdown-number {
           position: relative;
-          width: clamp(72px, 12vw, 110px);
-          height: clamp(72px, 12vw, 110px);
+          width: clamp(62px, 18vw, 100px);
+          height: clamp(62px, 18vw, 100px);
           display: flex;
           align-items: center;
           justify-content: center;
-          background: rgba(255,255,255,0.03);
-          border: 1px solid rgba(255,255,255,0.07);
-          border-radius: 16px;
+          background: rgba(255,255,255,0.04);
+          border: 1px solid rgba(255,255,255,0.08);
+          border-radius: 14px;
           overflow: hidden;
-          backdrop-filter: blur(8px);
-        }
-        .cs-countdown-number::after {
-          content: '';
-          position: absolute;
-          inset: 0;
-          border-radius: 16px;
-          box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
-          pointer-events: none;
+          /* No backdrop-filter — kills scroll performance on mobile (repainted every second) */
         }
         .cs-countdown-digit {
-          font-size: clamp(1.8rem, 5vw, 3rem);
+          font-size: clamp(1.5rem, 5.5vw, 2.8rem);
           font-weight: 800;
           color: #ffffff;
           font-variant-numeric: tabular-nums;
           display: block;
           font-family: 'Montserrat', sans-serif;
+          /* Promote to own layer for AnimatePresence flips */
+          will-change: transform, opacity;
         }
         .cs-countdown-label {
-          font-size: 0.6rem;
+          font-size: clamp(0.5rem, 1.5vw, 0.58rem);
           text-transform: uppercase;
-          letter-spacing: 0.2em;
-          color: #555;
+          letter-spacing: 0.18em;
+          color: #4a4a4a;
           font-weight: 600;
         }
         .cs-countdown-sep {
-          font-size: clamp(1.5rem, 4vw, 2.5rem);
+          font-size: clamp(1.2rem, 4vw, 2rem);
           font-weight: 300;
-          color: rgba(255,107,0,0.4);
-          margin-top: -20px;
+          color: rgba(255,107,0,0.35);
+          margin-top: -16px;
+          flex-shrink: 0;
         }
 
         /* ── EMAIL FORM ── */
         .cs-form-wrap {
-          max-width: 500px;
-          margin: 0 auto 2.5rem;
+          width: 100%;
+          max-width: 480px;
+          margin: 0 auto 2rem;
+          padding: 0 0.5rem;
         }
         .cs-form-label {
-          font-size: 0.7rem;
+          font-size: clamp(0.58rem, 1.8vw, 0.68rem);
           text-transform: uppercase;
           letter-spacing: 0.18em;
-          color: #555;
+          color: #4a4a4a;
           font-weight: 600;
           display: block;
           margin-bottom: 0.75rem;
         }
+        /* Stack vertically on mobile, row on desktop */
         .cs-form {
           display: flex;
+          flex-direction: column;
           gap: 10px;
-          flex-wrap: wrap;
-          justify-content: center;
+        }
+        @media (min-width: 480px) {
+          .cs-form { flex-direction: row; }
         }
         .cs-input {
-          flex: 1;
-          min-width: 220px;
-          background: rgba(255,255,255,0.05);
+          width: 100%;
+          background: rgba(255,255,255,0.06);
           border: 1px solid rgba(255,255,255,0.1);
           border-radius: 100px;
-          padding: 14px 24px;
-          font-size: 0.9rem;
+          padding: 14px 20px;
+          font-size: 1rem; /* ≥16px prevents iOS zoom-on-focus */
           color: #ffffff;
           font-family: 'Montserrat', sans-serif;
-          transition: border-color 0.3s, box-shadow 0.3s;
+          /* Remove transition on box-shadow — causes input lag on mobile */
+          transition: border-color 0.2s;
           outline: none;
+          -webkit-appearance: none;
+          appearance: none;
         }
-        .cs-input::placeholder { color: #444; }
-        .cs-input:focus {
-          border-color: #FF6B00;
-          box-shadow: 0 0 0 3px rgba(255,107,0,0.1);
-        }
+        .cs-input::placeholder { color: #3a3a3a; }
+        .cs-input:focus { border-color: #FF6B00; }
         .cs-btn {
           background: #FF6B00;
           color: #ffffff;
           border: none;
           border-radius: 100px;
           padding: 14px 28px;
-          font-size: 0.9rem;
+          font-size: 0.92rem;
           font-weight: 700;
           font-family: 'Montserrat', sans-serif;
           cursor: pointer;
-          transition: background 0.25s, transform 0.2s, box-shadow 0.3s;
           white-space: nowrap;
+          /* touch-action: manipulation disables 300ms tap delay */
+          touch-action: manipulation;
+          -webkit-tap-highlight-color: transparent;
+          transition: background 0.2s;
+          flex-shrink: 0;
         }
-        .cs-btn:hover {
-          background: #ff8533;
-          transform: translateY(-1px);
-          box-shadow: 0 0 30px rgba(255,107,0,0.4);
-        }
-        .cs-btn:active { transform: translateY(0); }
+        .cs-btn:hover  { background: #ff8533; }
+        .cs-btn:active { background: #e05f00; }
         .cs-form-error {
-          font-size: 0.78rem;
-          color: #ff4444;
+          font-size: 0.75rem;
+          color: #ff5555;
           margin-top: 0.5rem;
+          text-align: center;
         }
         .cs-form-success {
           display: flex;
           align-items: center;
           justify-content: center;
           gap: 10px;
-          font-size: 0.9rem;
+          font-size: 0.88rem;
           color: #FF6B00;
           font-weight: 600;
           padding: 14px 0;
+          text-align: center;
         }
         .cs-form-success-icon {
           width: 24px; height: 24px;
           background: rgba(255,107,0,0.15);
           border-radius: 50%;
           display: flex; align-items: center; justify-content: center;
-          font-size: 0.75rem;
+          font-size: 0.72rem;
+          flex-shrink: 0;
         }
 
         /* ── SOCIAL ── */
@@ -403,7 +434,7 @@ export default function ComingSoon() {
           display: flex;
           align-items: center;
           justify-content: center;
-          gap: 0.875rem;
+          gap: 0.75rem;
         }
         .cs-social-link {
           display: flex;
@@ -413,177 +444,183 @@ export default function ComingSoon() {
           border-radius: 50%;
           background: rgba(255,255,255,0.04);
           border: 1px solid rgba(255,255,255,0.08);
-          color: #666;
+          color: #555;
           text-decoration: none;
-          transition: background 0.25s, color 0.25s, border-color 0.25s, transform 0.25s, box-shadow 0.25s;
           flex-shrink: 0;
+          /* Faster tap feedback, no 300ms delay */
+          touch-action: manipulation;
+          -webkit-tap-highlight-color: transparent;
+          transition: background 0.2s, color 0.2s, border-color 0.2s;
         }
         .cs-social-link svg {
           width: 18px; height: 18px;
           fill: currentColor;
           display: block;
-          flex-shrink: 0;
         }
-        .cs-social-link:hover {
-          background: rgba(255,107,0,0.12);
-          border-color: rgba(255,107,0,0.35);
-          color: #FF6B00;
-          transform: translateY(-3px);
-          box-shadow: 0 6px 20px rgba(255,107,0,0.2);
+        @media (hover: hover) {
+          /* Hover effects only on devices with a real pointer — not mobile */
+          .cs-social-link:hover {
+            background: rgba(255,107,0,0.12);
+            border-color: rgba(255,107,0,0.35);
+            color: #FF6B00;
+          }
+          .cs-btn:hover { transform: translateY(-1px); box-shadow: 0 0 28px rgba(255,107,0,0.35); }
         }
+        .cs-social-link:active { background: rgba(255,107,0,0.15); color: #FF6B00; }
 
-        /* ── MARQUEE ── */
-        .cs-marquee-section {
-          position: relative;
-          z-index: 2;
-          border-top: 1px solid rgba(255,255,255,0.05);
-          border-bottom: 1px solid rgba(255,255,255,0.05);
-          padding: 1.25rem 0;
-          overflow: hidden;
-          background: rgba(255,255,255,0.01);
-        }
-        .cs-marquee-track {
-          display: flex;
-          animation: marquee-scroll 28s linear infinite;
-          width: max-content;
-        }
-        @keyframes marquee-scroll {
-          0% { transform: translateX(0); }
-          100% { transform: translateX(-50%); }
-        }
-        .cs-marquee-item {
-          display: inline-flex;
-          align-items: center;
-          gap: 1.5rem;
-          padding: 0 2rem;
-          white-space: nowrap;
-        }
-        .cs-marquee-text {
-          font-size: 0.7rem;
-          font-weight: 700;
-          letter-spacing: 0.2em;
-          text-transform: uppercase;
-          color: rgba(255,255,255,0.12);
-          transition: color 0.3s;
-        }
-        .cs-marquee-dot {
-          width: 4px; height: 4px;
-          background: rgba(255,107,0,0.4);
-          border-radius: 50%;
-          flex-shrink: 0;
-        }
-
-        /* ── FOOTER LINE ── */
-        .cs-footer {
-          position: relative;
-          z-index: 2;
-          padding: 2rem 2rem;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          flex-wrap: wrap;
-          gap: 1rem;
-        }
-        .cs-footer-brand {
-          font-size: 0.8rem;
-          font-weight: 700;
-          letter-spacing: 0.1em;
-          color: rgba(255,255,255,0.25);
-        }
-        .cs-footer-brand span { color: #FF6B00; }
-        .cs-footer-copy {
-          font-size: 0.72rem;
-          color: rgba(255,255,255,0.12);
-          letter-spacing: 0.05em;
-        }
-
-        /* ── SCROLL INDICATOR ── */
+        /* ── SCROLL HINT ── */
         .cs-scroll-hint {
           position: absolute;
-          bottom: 2.5rem;
+          bottom: 1.75rem;
           left: 50%;
           transform: translateX(-50%);
           z-index: 2;
           display: flex;
           flex-direction: column;
           align-items: center;
-          gap: 8px;
+          gap: 6px;
         }
         .cs-scroll-mouse {
-          width: 24px; height: 38px;
-          border: 2px solid rgba(255,255,255,0.15);
-          border-radius: 12px;
+          width: 22px; height: 34px;
+          border: 2px solid rgba(255,255,255,0.12);
+          border-radius: 11px;
           display: flex;
           align-items: flex-start;
           justify-content: center;
-          padding: 5px;
+          padding: 4px;
         }
         .cs-scroll-dot {
-          width: 4px; height: 4px;
+          width: 3px; height: 3px;
           background: #FF6B00;
           border-radius: 50%;
           animation: scroll-bounce 2s ease-in-out infinite;
+          will-change: transform;
         }
         @keyframes scroll-bounce {
-          0%, 100% { transform: translateY(0); opacity: 1; }
-          50% { transform: translateY(12px); opacity: 0.3; }
+          0%, 100% { transform: translateY(0);   opacity: 1; }
+          50%       { transform: translateY(10px); opacity: 0.3; }
         }
         .cs-scroll-text {
-          font-size: 0.55rem;
+          font-size: 0.5rem;
           text-transform: uppercase;
           letter-spacing: 0.2em;
-          color: rgba(255,255,255,0.2);
+          color: rgba(255,255,255,0.18);
           font-weight: 600;
         }
 
-        /* ── FEATURED TAGS ── */
-        .cs-tags {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 0.5rem;
-          justify-content: center;
-          margin-bottom: 3rem;
+        /* ── MARQUEE: will-change for GPU compositing ── */
+        .cs-marquee-section {
+          position: relative;
+          z-index: 2;
+          border-top: 1px solid rgba(255,255,255,0.05);
+          border-bottom: 1px solid rgba(255,255,255,0.05);
+          padding: 1.1rem 0;
+          overflow: hidden;
         }
-        .cs-tag {
+        .cs-marquee-track {
+          display: flex;
+          animation: marquee-scroll 32s linear infinite;
+          width: max-content;
+          will-change: transform;
+        }
+        @keyframes marquee-scroll {
+          from { transform: translateX(0); }
+          to   { transform: translateX(-50%); }
+        }
+        .cs-marquee-item {
+          display: inline-flex;
+          align-items: center;
+          gap: 1.25rem;
+          padding: 0 1.5rem;
+          white-space: nowrap;
+        }
+        .cs-marquee-text {
           font-size: 0.65rem;
-          font-weight: 600;
-          letter-spacing: 0.12em;
+          font-weight: 700;
+          letter-spacing: 0.2em;
           text-transform: uppercase;
-          color: rgba(255,255,255,0.25);
-          background: rgba(255,255,255,0.03);
-          border: 1px solid rgba(255,255,255,0.06);
-          border-radius: 100px;
-          padding: 5px 14px;
+          color: rgba(255,255,255,0.1);
+        }
+        .cs-marquee-dot {
+          width: 3px; height: 3px;
+          background: rgba(255,107,0,0.4);
+          border-radius: 50%;
+          flex-shrink: 0;
+        }
+
+        /* ── FOOTER ── */
+        .cs-footer {
+          position: relative;
+          z-index: 2;
+          padding: 1.5rem 1.5rem;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-direction: column;
+          gap: 0.4rem;
+          text-align: center;
+        }
+        @media (min-width: 600px) {
+          .cs-footer {
+            flex-direction: row;
+            justify-content: space-between;
+          }
+        }
+        .cs-footer-brand {
+          font-size: 0.78rem;
+          font-weight: 700;
+          letter-spacing: 0.1em;
+          color: rgba(255,255,255,0.2);
+        }
+        .cs-footer-brand span { color: #FF6B00; }
+        .cs-footer-copy {
+          font-size: 0.68rem;
+          color: rgba(255,255,255,0.1);
+          letter-spacing: 0.04em;
+        }
+
+        /* ── MOBILE SPECIFIC OVERRIDES ── */
+        @media (max-width: 480px) {
+          .cs-hero { padding: 4.5rem 1rem 4rem; }
+          .cs-content { padding: 0 0.25rem; }
+          .cs-badge { margin-bottom: 1.5rem; padding: 6px 14px; }
+          .cs-sub { margin-bottom: 1.75rem; font-size: 0.9rem; }
+          .cs-tags { margin-bottom: 1.75rem; gap: 0.35rem; }
+          .cs-progress-wrap { margin-bottom: 1.75rem; }
+          .cs-countdown { margin-bottom: 1.75rem; gap: 0.4rem; }
+          .cs-form-wrap { margin-bottom: 1.5rem; }
+          .cs-scroll-hint { display: none; } /* hidden on mobile — obvious to scroll */
         }
       `}</style>
 
       <div className="cs-root">
         {/* ── HERO ── */}
-        <section ref={heroRef} className="cs-hero">
+        <section className="cs-hero">
+          {/* Orbs — radial-gradient, no blur filter, GPU composited */}
           <motion.div
-            style={{ y: bgY }}
             className="cs-orb cs-orb-1"
-            animate={{ x: [0, 60, -30, 0], y: [0, -40, 30, 0], scale: [1, 1.1, 0.95, 1] }}
-            transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
+            animate={prefersReducedMotion ? {} : { x: [0, 40, -20, 0], y: [0, -30, 20, 0] }}
+            transition={{ duration: 22, repeat: Infinity, ease: 'linear', repeatType: 'loop' }}
           />
           <motion.div
             className="cs-orb cs-orb-2"
-            animate={{ x: [0, -40, 20, 0], y: [0, 30, -20, 0] }}
-            transition={{ duration: 15, repeat: Infinity, ease: 'linear' }}
+            animate={prefersReducedMotion ? {} : { x: [0, -30, 15, 0], y: [0, 20, -15, 0] }}
+            transition={{ duration: 18, repeat: Infinity, ease: 'linear', repeatType: 'loop' }}
           />
           <motion.div
             className="cs-orb cs-orb-3"
-            animate={{ scale: [1, 1.3, 1] }}
-            transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
+            animate={prefersReducedMotion ? {} : { scale: [1, 1.2, 1] }}
+            transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' }}
           />
           <div className="cs-grid" />
+          <div className="cs-noise" />
 
           <div className="cs-content">
             {/* Badge */}
             <motion.div
-              initial={{ opacity: 0, y: 24 }}
+              initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.1 }}
+              transition={{ duration: 0.6, delay: 0.1 }}
               className="cs-badge"
               id="dev-badge"
             >
@@ -593,25 +630,23 @@ export default function ComingSoon() {
             </motion.div>
 
             {/* Headline */}
-            <div style={{ marginBottom: '0.25rem' }}>
-              <motion.h1
-                initial={{ y: 80, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ duration: 1, delay: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
-              >
-                <span className="cs-headline">
-                  <span className="cs-headline-white">Something</span>
-                  <span className="cs-headline-orange">Bold</span>
-                  <span className="cs-headline-dim">Is Coming</span>
-                </span>
-              </motion.h1>
-            </div>
+            <motion.h1
+              initial={{ y: 60, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ duration: 0.85, delay: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }}
+            >
+              <span className="cs-headline">
+                <span className="cs-headline-white">Something</span>
+                <span className="cs-headline-orange">Bold</span>
+                <span className="cs-headline-dim">Is Coming</span>
+              </span>
+            </motion.h1>
 
             {/* Subtext */}
             <motion.p
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.7 }}
+              transition={{ duration: 0.7, delay: 0.55 }}
               className="cs-sub"
             >
               Creatorstick Media is crafting a next-generation platform for brands, creators, and
@@ -622,7 +657,7 @@ export default function ComingSoon() {
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ duration: 0.8, delay: 0.9 }}
+              transition={{ duration: 0.6, delay: 0.75 }}
               className="cs-tags"
             >
               {['Brand Strategy', 'Creator Marketing', 'Content Production', 'Digital Campaigns', 'Social Media'].map((t) => (
@@ -632,48 +667,48 @@ export default function ComingSoon() {
 
             {/* Progress */}
             <motion.div
-              initial={{ opacity: 0, y: 16 }}
+              initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 1.0 }}
+              transition={{ duration: 0.6, delay: 0.9 }}
               className="cs-progress-wrap"
             >
-              <div className="cs-progress-header" style={{ maxWidth: 480, margin: '0 auto 0.75rem' }}>
+              <div className="cs-progress-header">
                 <span className="cs-progress-label">Development Progress</span>
                 <span className="cs-progress-pct">65%</span>
               </div>
               <div className="cs-progress-track">
                 <motion.div
                   className="cs-progress-fill"
-                  initial={{ width: 0 }}
-                  animate={{ width: '65%' }}
-                  transition={{ duration: 1.8, delay: 1.3, ease: [0.25, 0.46, 0.45, 0.94] }}
+                  initial={{ scaleX: 0 }}
+                  animate={{ scaleX: 0.65 }}
+                  transition={{ duration: 1.6, delay: 1.1, ease: [0.25, 0.46, 0.45, 0.94] }}
                 />
               </div>
             </motion.div>
 
             {/* Countdown */}
             <motion.div
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 1.1 }}
+              transition={{ duration: 0.6, delay: 1.0 }}
             >
-              <p className="cs-progress-label" style={{ marginBottom: '1.25rem' }}>Launching In</p>
+              <p className="cs-progress-label" style={{ marginBottom: '1rem' }}>Launching In</p>
               <div className="cs-countdown" id="countdown">
                 <CountdownUnit value={days} label="Days" />
                 <span className="cs-countdown-sep">:</span>
-                <CountdownUnit value={hours} label="Hours" />
+                <CountdownUnit value={hours} label="Hrs" />
                 <span className="cs-countdown-sep">:</span>
-                <CountdownUnit value={minutes} label="Minutes" />
+                <CountdownUnit value={minutes} label="Min" />
                 <span className="cs-countdown-sep">:</span>
-                <CountdownUnit value={seconds} label="Seconds" />
+                <CountdownUnit value={seconds} label="Sec" />
               </div>
             </motion.div>
 
             {/* Email Notify */}
             <motion.div
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 1.3 }}
+              transition={{ duration: 0.6, delay: 1.15 }}
               className="cs-form-wrap"
             >
               <label className="cs-form-label" htmlFor="cs-email-input">
@@ -683,7 +718,7 @@ export default function ComingSoon() {
                 {submitted ? (
                   <motion.div
                     key="success"
-                    initial={{ opacity: 0, scale: 0.9 }}
+                    initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
                     className="cs-form-success"
                   >
@@ -702,6 +737,8 @@ export default function ComingSoon() {
                       <input
                         id="cs-email-input"
                         type="email"
+                        inputMode="email"
+                        autoComplete="email"
                         className="cs-input"
                         placeholder="your@email.com"
                         value={email}
@@ -722,11 +759,11 @@ export default function ComingSoon() {
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ duration: 0.8, delay: 1.5 }}
+              transition={{ duration: 0.6, delay: 1.3 }}
               className="cs-social"
               aria-label="Social media links"
             >
-  {[
+              {[
                 {
                   title: 'Instagram',
                   href: 'https://instagram.com/creatorstick',
@@ -783,7 +820,7 @@ export default function ComingSoon() {
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ delay: 2.5 }}
+            transition={{ delay: 2.2 }}
             className="cs-scroll-hint"
           >
             <div className="cs-scroll-mouse">
