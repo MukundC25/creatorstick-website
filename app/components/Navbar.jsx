@@ -250,12 +250,51 @@ export default function Navbar() {
 
             <button
               onClick={() => setIsOpen(!isOpen)}
-              className="lg:hidden flex flex-col gap-1.5 p-2"
+              className="lg:hidden relative flex flex-col items-center justify-center gap-[5px] w-11 h-11 rounded-xl transition-all duration-300"
               aria-label="Toggle menu"
+              style={{
+                background: isOpen
+                  ? 'rgba(255,107,0,0.15)'
+                  : 'var(--glass-light-bg)',
+                border: isOpen
+                  ? '1px solid rgba(255,107,0,0.4)'
+                  : '1px solid var(--border-hover)',
+                boxShadow: isOpen
+                  ? '0 0 20px rgba(255,107,0,0.2)'
+                  : 'none',
+              }}
             >
-              <motion.span animate={isOpen ? { rotate: 45, y: 8 } : { rotate: 0, y: 0 }} className="block w-6 h-0.5" style={{ background: 'var(--foreground)' }} />
-              <motion.span animate={isOpen ? { opacity: 0 } : { opacity: 1 }} className="block w-6 h-0.5" style={{ background: 'var(--foreground)' }} />
-              <motion.span animate={isOpen ? { rotate: -45, y: -8 } : { rotate: 0, y: 0 }} className="block w-6 h-0.5" style={{ background: 'var(--foreground)' }} />
+              {/* Top bar */}
+              <motion.span
+                animate={isOpen ? { rotate: 45, y: 7, width: '20px' } : { rotate: 0, y: 0, width: '20px' }}
+                transition={{ duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] }}
+                className="block h-[2px] rounded-full origin-center"
+                style={{ background: isOpen ? '#FF6B00' : 'var(--heading)' }}
+              />
+              {/* Middle bar */}
+              <motion.span
+                animate={isOpen ? { opacity: 0, scaleX: 0 } : { opacity: 1, scaleX: 1 }}
+                transition={{ duration: 0.2 }}
+                className="block h-[2px] rounded-full"
+                style={{ width: '14px', background: 'var(--heading)', alignSelf: 'flex-end', marginRight: '3px' }}
+              />
+              {/* Bottom bar */}
+              <motion.span
+                animate={isOpen ? { rotate: -45, y: -7, width: '20px' } : { rotate: 0, y: 0, width: '20px' }}
+                transition={{ duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] }}
+                className="block h-[2px] rounded-full origin-center"
+                style={{ background: isOpen ? '#FF6B00' : 'var(--heading)' }}
+              />
+              {/* Orange dot — closed state indicator */}
+              {!isOpen && (
+                <motion.span
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  exit={{ scale: 0 }}
+                  className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-orange"
+                  style={{ boxShadow: '0 0 6px rgba(255,107,0,0.8)' }}
+                />
+              )}
             </button>
           </div>
         </div>
@@ -279,7 +318,7 @@ export default function Navbar() {
                     <button
                       onClick={() => setMobileServicesOpen(!mobileServicesOpen)}
                       className="flex items-center gap-2 text-2xl font-bold font-montserrat"
-                      style={{ color: isServicesActive ? '#FF6B00' : 'var(--foreground)' }}
+                      style={{ color: isServicesActive ? '#FF6B00' : 'var(--heading)' }}
                     >
                       Our Services
                       <motion.svg animate={{ rotate: mobileServicesOpen ? 180 : 0 }} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -316,7 +355,7 @@ export default function Navbar() {
                   <Link
                     href={link.href}
                     className="text-3xl font-bold font-montserrat"
-                    style={{ color: pathname === link.href ? '#FF6B00' : 'var(--foreground)' }}
+                    style={{ color: pathname === link.href ? '#FF6B00' : 'var(--heading)' }}
                     onClick={() => setIsOpen(false)}
                   >
                     {link.label}
